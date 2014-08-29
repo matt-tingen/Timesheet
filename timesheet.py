@@ -181,12 +181,16 @@ class Timesheet:
 
     def __str__(self):
         def str_from_level(level, level_name, depth):
-            string = '{indent}{name} ({time}/{total_time})'.format(
+            time = format_timedelta(level['time'])
+            total_time = format_timedelta(level['total_time'])
+            time_display = '({})'.format(time) if time == total_time else '({}/{})'.format(time, total_time)
+
+            string = '{indent}{name} {time}'.format(
                 indent = depth * INDENTION_TEXT,
                 name = level_name,
-                time = format_timedelta(level['time']),
-                total_time = format_timedelta(level['total_time'])
+                time = time_display
             )
+
             for sublevel_name, sublevel in level['children'].items():
                 string += '\n' + str_from_level(sublevel, sublevel_name, depth + 1)
             return string

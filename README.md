@@ -26,6 +26,8 @@ Times can be in a number of formats that will be configurable in the future. Cur
 
 Parent task can be excluded from the display and total time by including them in the line-delimited `blacklist` file.
 
+Tasks can have any number of levels to their hierarchy, but more than three or four is probably not practical.
+
 C-style comments (`//` and `/* */`) are supported.
 
 Task descriptors are case-insensitive.

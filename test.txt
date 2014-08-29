@@ -1,13 +1,15 @@
-/*	Matt Tingen
-	Thursday, August 28, 2014
+/*	
+Example timesheet
+Thursday, August 28, 2014
 */
-09:00	10:15	Task 1	subtask 1
-		10.20	Task 1	subtask 2
-		10:21	Task 1	subtask 2	gchild 1
-		10:22 am	Task 1	subtask 2	gchild 2
-		10:23	Task 1	subtask 2	gchild 2
-10:30	13.42	Task 2
-		14:27	lunch // This task will be ignored because it is blacklisted
-// This next task will merge with 'Task 1' because tasks are case-insensitive
-3:00 pm	16:30	task 1 
-		16:35	task 3 
+09:00	9:30	Issue #1422	discussing with Patrick
+		10.20	meeting	daily stand up	
+		10.25	break	Coffee time // This task will be ignored because it is blacklisted
+		10:41	Issue #1422	restarting server
+10:44	10:56	issue #1372	reviewing
+		11:53	Issue #1372	Merging code
+		12:47	lunch // blacklisted
+		1:00 pm	Issue #1372	Merging code
+		16:03	meeting	code review
+		16:21	Issue #1372	Merging code
+// ...

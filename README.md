@@ -48,6 +48,8 @@ Here's a sample timesheet with output:
     		1:00 pm	Issue #1372	Merging code
     		16:03	meeting	code review
     		16:21	Issue #1372	Merging code
+    		16:40	issue #1372
+
     // ...
     
 Yields
@@ -60,6 +62,6 @@ Yields
     meeting (0:00/3:53)
         daily stand up (0:50)
         code review (3:03)
-    issue #1372 (0:00/1:40)
+    issue #1372 (0:19/1:59)
         reviewing (0:12)
         merging code (1:28)

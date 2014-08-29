@@ -16,7 +16,7 @@ TIME_FORMATS = (
 # The path to a line-delimitetedfile contianing tasks which should not count toward clockable time e.g. lunch, break, etc
 BLACKLIST_FILE = 'blacklist'
 
-# The string to use for indenting subtasks. Do not use tabs
+# The string to use for indenting subtasks.
 INDENTION_TEXT = '    '
 
 # Format used for task durations. 
@@ -69,10 +69,10 @@ class Task:
     @classmethod
     def from_string(cls, input_string, prev_end_time=None):
         # Split on all (non-linebreak) whitespace that contains at least one tab to allow free spacing
-        split_input = [x for x in re.split(r'\s*\t\s*', input_string) if x]
+        split_input = [x.strip() for x in re.split(r'\s*\t\s*', input_string) if x.strip()]
 
-        insufficient_items_error = TaskParseError('Insufficient items in task string: ', input_string)
-        invalid_time_error_msg = 'Invalid time in task string: {}'
+        insufficient_items_error = TaskParseError('Insufficient items in task string:\n' + input_string)
+        invalid_time_error_msg = lambda s: TaskParseError('Invalid time in task string:\n' + s)
 
         # Start time can be omitted from input_string if supplied via prev_end_time.
         # If both are present, the value from input_string takes precadence.
@@ -81,7 +81,7 @@ class Task:
         except IndexError:
             raise insufficient_items_error
         except ValueError:
-            raise TaskParseError(invalid_time_error_msg.format(split_input[0]))
+            raise invalid_time_error_msg(split_input[0])
 
         try:
             second_time = parse_time(split_input[1])
@@ -89,7 +89,7 @@ class Task:
             raise insufficient_items_error
         except ValueError:
             if prev_end_time is None:
-                raise TaskParseError(invalid_time_error_msg.format(split_input[1]))
+                raise invalid_time_error_msg(split_input[1])
             else:
                 start_time = prev_end_time
                 end_time = first_time
@@ -126,11 +126,23 @@ class Timesheet:
         with open(filename) as f:
             text = f.read()
 
+        # Remove block comments
+        text = re.sub(r'/\*.*\*/', '', text, flags=re.DOTALL)
+        # Remove end-of-line comments
+        text = re.sub(r'//.*', '', text)
+
         tasks = cls(blacklist=blacklist)
 
         prev_end_time = None
-        for line in text.split('\n'):
-            task = Task.from_string(line, prev_end_time)
+        for line_num, line in enumerate(text.split('\n'), 1):
+            if not line.strip():
+                continue
+
+            try:
+                task = Task.from_string(line, prev_end_time)
+            except TaskParseError as err:
+                raise TaskParseError('Error on line {} - {}'.format(line_num, err))
+
             prev_end_time = task.end
             tasks.add_task(task)
 
@@ -199,12 +211,11 @@ def main():
             blacklist = [x.strip() for x in re.split(r'(?:\r?\n)+', f.read()) if x.strip()]
     except OSError:
         blacklist = []
-    print(blacklist)
         
     try:
         timesheet = Timesheet.from_file(filename, blacklist)
     except TaskParseError as err:
-        print('Error parsing timesheet:', err, sep='\n')
+        print(err)
         exit()
     except OSError:
         print('Unable to read file')

@@ -5,7 +5,7 @@ This is a simple timesheet parser with support for hierachical tasks
 
 To use, call `python timesheet.py input_file`
 
-The input file should have line-delimited tasks where a task consists of a start time (implied or explicit), and end time, and a hierarchy of descriptors.
+The input file should have line-delimited tasks where a task consists of a start time (implied or explicit), an end time, and a hierarchy of descriptors.
 Each token in the task must be separated by whitespace containing at least one tab.
 For example,
   
@@ -24,7 +24,7 @@ Times can be in a number of formats that will be configurable in the future. Cur
 * `%H:%M` (13:45, 09:23, 08:55, etc.)
 * `%H.%M` (13.45, 09.23, 08.55, etc.)
 
-Parent task can be excluded from the display and total time by including them in the line-delimited `blacklist` file.
+Parent tasks can be excluded from the display and total time by including them in the line-delimited `blacklist` file.
 
 Tasks can have any number of levels to their hierarchy, but more than three or four is probably not practical.
 

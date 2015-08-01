@@ -98,7 +98,7 @@ class TaskParser:
         return root_task
 
     def parse_task(self, line, previous_end_time=None):
-        parts = tuple(p for p in line.split(self.delimiter) if p)
+        parts = tuple(p for p in re.split(self.delimiter, line) if p)
 
         # first_time may correspond to start time or end time.
         first_time = self.parse_time(parts[0])

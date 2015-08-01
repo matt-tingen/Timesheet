@@ -1,7 +1,7 @@
 Timesheet
 =========
 
-This is a simple timesheet parser with support for hierachical tasks
+This is a simple timesheet parser with support for hierarchical tasks
 
 To use, run `python timesheet.py input_file`
 

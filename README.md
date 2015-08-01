@@ -3,7 +3,7 @@ Timesheet
 
 This is a simple timesheet parser with support for hierachical tasks
 
-To use, call `python timesheet.py input_file`
+To use, run `python timesheet.py input_file`
 
 The input file should have line-delimited tasks where a task consists of a start time (implied or explicit), an end time, and a hierarchy of descriptors.
 Each token in the task must be separated by whitespace containing at least one tab.
@@ -19,12 +19,16 @@ The start time for a task other than the first can be omitted and it will use th
     		16:00	Meeting	Sprint kickoff
 Here, two tasks will be created under the parent `Meeting`: `Code review` which runs from 1pm-3pm and `Sprint kickoff` which runs from 3pm-4pm. The indention at the beginning of the second line is not necessary but makes it easier to understand.
 
-Times can be in a number of formats that will be configurable in the future. Currently the following are supported:
+Times can be in a number of [configurable formats](https://docs.python.org/3.5/library/datetime.html#strftime-strptime-behavior). The default formats are following are supported:
 * `%I:%M %p` (01:45 PM, 09:23 AM, 8:55 am, etc.)
 * `%H:%M` (13:45, 09:23, 08:55, etc.)
 * `%H.%M` (13.45, 09.23, 08.55, etc.)
 
-Parent tasks can be excluded from the display and total time by including them in the line-delimited `blacklist` file.
+Tasks can be excluded from the display and total time if their root identifier is in the configurable blacklist. The blacklist is case-insensitive. By default, the following root identifiers are ignored:
+* break
+* lunch
+* errand
+* ignore
 
 Tasks can have any number of levels to their hierarchy, but more than three or four is probably not practical.
 

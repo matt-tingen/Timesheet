@@ -1,0 +1,19 @@
+{
+	"parser": {
+		"delimiter": "\t",
+		"time_formats": [
+			"%I:%M %p",
+			"%H:%M",
+			"%H.%M"
+		],
+		"blacklisted_task_names": [
+			"break",
+			"errand",
+			"ignore"
+		]
+	},
+	"formatter": {
+		"indention": "\t",
+		"time_format": "{hours}:{minutes:02}"
+	}
+}

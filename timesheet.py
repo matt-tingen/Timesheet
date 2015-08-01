@@ -1,232 +1,179 @@
-import re
 import sys
+import re
+import json
 import datetime
-from collections import OrderedDict
+
+class TaskFormatter:
+    def __init__(self, indention='\t', time_format='{hours}:{minutes:02}'):
+        self.indention = indention
+        self.time_format = time_format
+
+    def format_task_list(self, task_list, indention_level=0):
+        list_string = ''
+
+        for task in task_list:
+            list_string += indention_level * self.indention
+            list_string += self.format_task(task) + '\n'
+
+            if task.sub_tasks:
+                list_string += self.format_task_list(task.sub_tasks, indention_level + 1)
+
+        return list_string
+
+    def format_task(self, task):
+        time_string = self.format_timedelta(task.duration)
+
+        if task.sub_tasks:
+            time_string += '/' + self.format_timedelta(task.total_duration())
+
+        return '{} ({})'.format(task.name, time_string)
+
+    def format_timedelta(self, timedelta):
+        # A datetime.timedelta does not have a strptime method
+        # and only has days, seconds, and microseconds attributes.
+        hours, minutes = divmod(timedelta.seconds // 60, 60)
+        return self.time_format.format(hours=hours, minutes=minutes)
 
 
-# TIME_FORMATs is a priority list of formats that will be used for parsing.
-# For the syntax of these time strings, see:
-# https://docs.python.org/library/time.html#time.strftime
-TIME_FORMATS = (
-    '%I:%M %p', # 01:45 PM, 09:23 AM, 8:55 am, etc.
-    '%H:%M',    # 13:45, 09:23, 08:55, etc.
-    '%H.%M',    # 13.45, 09.23, 08.55, etc. (easier to type with numpad)
-)
+class Task:
+    def __init__(self, name, duration=None):
+        self.name = name
+        self.sub_tasks = []
+        self.duration = duration or datetime.timedelta(0)
 
-# The path to a line-delimitetedfile contianing tasks which should not count toward clockable time e.g. lunch, break, etc
-BLACKLIST_FILE = 'blacklist'
+    def total_duration(self):
+        return self.duration + sum((t.total_duration() for t in self.sub_tasks), datetime.timedelta(0))
 
-# The string to use for indenting subtasks.
-INDENTION_TEXT = '    '
+    # task_name is case insensitive
+    def get_sub_task(self, task_name):
+        task_name = task_name.lower()
 
-# Format used for task durations. 
-# This does not use the same syntax as TIME_FORMAT (see format_timedelta() for why).
-# This uses the str.format() method and the keyword args 'hours' and 'minutes'.
-DURATION_FORMAT = '{hours}:{minutes:02}' # e.g. 3:45
-
-# Interval and minimum used when rounding times for reporting
-TIME_INTERVAL = datetime.timedelta(minutes=15)
-TIME_MIN = datetime.timedelta(minutes=15)
-
-#### END CONFIG ####
-
-def format_timedelta(timedelta):
-    # A datetime.timedelta does not have a strptime method
-    # and only has days, seconds, and microseconds attributes.
-    hours, minutes = divmod(timedelta.seconds // 60, 60)
-    return DURATION_FORMAT.format(hours=hours, minutes=minutes)
-
-
-def round_time(time):
-    time = round(time / TIME_INTERVAL) * TIME_INTERVAL
-    return max(TIME_MIN, time)
-
-def parse_time(time_str):
-    for time_format in TIME_FORMATS:
         try:
-            return datetime.datetime.strptime(time_str, time_format)
-        except ValueError:
-            pass
-    raise ValueError('Time string did not match any format strings')
+            return next(t for t in self.sub_tasks if t.name.lower() == task_name)
+        except StopIteration:
+            return None
+
+    def add_sub_task(self, sub_task):
+        existing_task = self.get_sub_task(sub_task.name)
+
+        if existing_task is None:
+            self.sub_tasks.append(sub_task)
+        else:
+            existing_task.duration += sub_task.duration
+
+            for grandchild_task in sub_task.sub_tasks:
+                existing_task.add_sub_task(grandchild_task)
+
+    def __repr__(self):
+        return '<Task({}, {}) with {} sub-tasks>'.format(self.name, self.duration, len(self.sub_tasks))
 
 
 class TaskParseError(ValueError):
     pass
 
-class Task:
-    def __init__(self, start_time, end_time, task_hierarchy):
-        """
-        start_time and end_time are datetime objects
-        task_hierarchy is a list of strings with the first item being the 
-            parent and following items being children, grandchildren, etc.
-        """
-        self.start = start_time
-        self.end = end_time
-        self.hierarchy = list(task_hierarchy)
 
-        self.duration = end_time - start_time
+class TaskParser:
+    # blacklisted_task_names is case insensitive
+    def __init__(self, delimiter, time_formats, blacklisted_task_names=()):
+        self.delimiter = delimiter
+        self.time_formats = time_formats
+        self.blacklist = {n.lower() for n in blacklisted_task_names}
 
-    @classmethod
-    def from_string(cls, input_string, prev_end_time=None):
-        # Split on all (non-linebreak) whitespace that contains at least one tab to allow free spacing
-        split_input = [x.strip() for x in re.split(r'\s*\t\s*', input_string) if x.strip()]
+    def parse(self, input_text):
+        input_text = self.remove_block_comments(input_text)
+        input_text = self.remove_line_comments(input_text)
 
-        insufficient_items_error = TaskParseError('Insufficient items in task string:\n' + input_string)
-        invalid_time_error_msg = lambda s: TaskParseError('Invalid time in task string:\n' + s)
+        root_task = Task(None)
+        previous_end_time = None
 
-        # Start time can be omitted from input_string if supplied via prev_end_time.
-        # If both are present, the value from input_string takes precadence.
+        for line in re.split(r'[\r\n]+', input_text):
+            line = line.strip()
+
+            if line:
+                task, previous_end_time = self.parse_task(line, previous_end_time)
+
+                if task.name.lower() not in self.blacklist:
+                    root_task.add_sub_task(task)
+
+        return root_task
+
+    def parse_task(self, line, previous_end_time=None):
+        parts = tuple(p for p in line.split(self.delimiter) if p)
+
+        # first_time may correspond to start time or end time.
+        first_time = self.parse_time(parts[0])
+
         try:
-            first_time = parse_time(split_input[0])
-        except IndexError:
-            raise insufficient_items_error
-        except ValueError:
-            raise invalid_time_error_msg(split_input[0])
+            second_time = self.parse_time(parts[1])
+        except TaskParseError:
+            if previous_end_time is None:
+                raise
 
-        try:
-            second_time = parse_time(split_input[1])
-        except IndexError:
-            raise insufficient_items_error
-        except ValueError:
-            if prev_end_time is None:
-                raise invalid_time_error_msg(split_input[1])
-            else:
-                start_time = prev_end_time
-                end_time = first_time
-                hierarchy = split_input[1:]
+            start = previous_end_time
+            end = first_time
+            first_task_index = 1
         else:
-            start_time = first_time
-            end_time = second_time
+            start = first_time
+            end = second_time
+            first_task_index = 2
+
+        final_index = len(parts) - 1
+
+        if final_index < first_task_index:
+            raise TaskParseError("Missing task")
+
+        # Only the deepest subtask will have a duration; higher tasks will
+        # reflect the duration in their total_duration.
+        get_duration = lambda i: end - start if i == final_index else None
+        final_task = root_task = Task(parts[first_task_index], get_duration(first_task_index))
+
+        for i, task_name in enumerate(parts[first_task_index + 1:], first_task_index + 1):
+            task = Task(task_name, get_duration(i))
+            final_task.add_sub_task(task)
+            final_task = task
+
+        return root_task, end
+
+    def parse_time(self, time_string):
+        for time_format in self.time_formats:
             try:
-                hierarchy = split_input[2:]
-            except IndexError:
-                raise insufficient_items_error
+                return datetime.datetime.strptime(time_string, time_format)
+            except ValueError:
+                pass
 
-        return cls(start_time, end_time, hierarchy)
+        raise TaskParseError('Time string did not match any format strings: ' + time_string)
 
-    def __str__(self):
-        return '{} ({})'.format(self.hierarchy[0], format_timedelta(self.duration))
+    @staticmethod
+    def remove_block_comments(input_text):
+        return re.sub(r'/\*.*\*/', '', input_text, flags=re.DOTALL)
 
-    def __repr__(self):
-        max_length = 10
-        abbreviated_hierarchy = [x[:max_length] + '...' if len(x) > max_length else x for x in self.hierarchy]
-        return '<Task (duration {}) {})>'.format(format_timedelta(self.duration), abbreviated_hierarchy)
-
-
-class Timesheet:
-    def __init__(self, tasks=None, blacklist=None):
-        self.clear()
-        self._blacklist = set(blacklist or [])
-
-        for task in (tasks or []):
-            self.add_task(task)
-
-    @classmethod
-    def from_file(cls, filename, blacklist=None):
-        with open(filename) as f:
-            text = f.read()
-
-        # Remove block comments
-        text = re.sub(r'/\*.*\*/', '', text, flags=re.DOTALL)
-        # Remove end-of-line comments
-        text = re.sub(r'//.*', '', text)
-
-        tasks = cls(blacklist=blacklist)
-
-        prev_end_time = None
-        for line_num, line in enumerate(text.split('\n'), 1):
-            if not line.strip():
-                continue
-
-            try:
-                task = Task.from_string(line, prev_end_time)
-            except TaskParseError as err:
-                raise TaskParseError('Error on line {} - {}'.format(line_num, err))
-
-            prev_end_time = task.end
-            tasks.add_task(task)
-
-        return tasks
-
-    def _new_child_level(self):
-        # Each level in the hierarchy keeps track of the time spend on that particular level,
-        # the total duration of all tasks at that level and all child levels,
-        # as well as its child levels in the order entered.
-        return {
-            'time': datetime.timedelta(),
-            'total_time': datetime.timedelta(),
-            'children': OrderedDict()
-        }
-
-    def add_level(self, parent_level, child_name):
-        child_name = child_name.lower()
-        if child_name not in parent_level['children']:
-            parent_level['children'][child_name] = self._new_child_level()
-        return parent_level['children'][child_name]
-
-    def clear(self):
-        self._tasks = []
-        self._hierarchy = self._new_child_level()
-
-    def add_task(self, task):
-        if task.hierarchy[0] not in self._blacklist:
-            self._tasks.append(task)
-
-            current_level = self._hierarchy
-            current_level['total_time'] += task.duration
-            for level in task.hierarchy:
-                current_level = self.add_level(current_level, level)
-                current_level['total_time'] += task.duration
-            current_level['time'] += task.duration
-
-    def __str__(self):
-        def str_from_level(level, level_name, depth):
-            time = format_timedelta(level['time'])
-            total_time = format_timedelta(level['total_time'])
-            time_display = '({})'.format(time) if time == total_time else '({}/{})'.format(time, total_time)
-
-            string = '{indent}{name} {time}'.format(
-                indent = depth * INDENTION_TEXT,
-                name = level_name,
-                time = time_display
-            )
-
-            for sublevel_name, sublevel in level['children'].items():
-                string += '\n' + str_from_level(sublevel, sublevel_name, depth + 1)
-            return string
-
-        string = 'Total time: {}\n'.format(format_timedelta(self._hierarchy['total_time']))
-
-        for level_name, level in self._hierarchy['children'].items():
-            string += '\n' + str_from_level(level, level_name, 0)
-
-        return string
+    @staticmethod
+    def remove_line_comments(input_text):
+        return re.sub(r'//.*', '', input_text)
 
 
 def main():
     try:
-        filename = sys.argv[1]
+        input_filename = sys.argv[1]
     except IndexError:
         print('Must pass a file as argument')
         exit()
 
-    try:
-        with open(BLACKLIST_FILE) as f:
-            blacklist = [x.strip() for x in re.split(r'(?:\r?\n)+', f.read()) if x.strip()]
-    except OSError:
-        blacklist = []
-        
-    try:
-        timesheet = Timesheet.from_file(filename, blacklist)
-    except TaskParseError as err:
-        print(err)
-        exit()
-    except OSError:
-        print('Unable to read file')
-        exit()
+    with open('config.json') as config_file:
+        config = json.load(config_file)
 
-    print(timesheet)
+    parser = TaskParser(**config["parser"])
+    formatter = TaskFormatter(**config["formatter"])
 
+    with open(input_filename) as input_file:
+        file_contents = input_file.read()
+
+    task = parser.parse(file_contents)
+
+    total_duration = formatter.format_timedelta(task.total_duration())
+
+    print('Total Time: {}\n'.format(total_duration))
+    print(formatter.format_task_list(task.sub_tasks))
 
 if __name__ == '__main__':
     main()

@@ -54,14 +54,14 @@ Here's a sample timesheet with output:
 
 Yields
 
-    Total time: 6:19
+    Total Time: 6:38
 
-    issue #1422 (0:00/0:46)
-        discussing with patrick (0:30)
+    Issue #1422 (0:00/0:46)
+        discussing with Patrick (0:30)
         restarting server (0:16)
     meeting (0:00/3:53)
         daily stand up (0:50)
         code review (3:03)
     issue #1372 (0:19/1:59)
         reviewing (0:12)
-        merging code (1:28)
+        Merging code (1:28)

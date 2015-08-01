@@ -14,7 +14,7 @@
 		]
 	},
 	"formatter": {
-		"indention": "\t",
+		"indention": "    ",
 		"time_format": "{hours}:{minutes:02}"
 	}
 }

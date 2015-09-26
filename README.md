@@ -34,7 +34,7 @@ Tasks can have any number of levels to their hierarchy, but more than three or f
 
 C-style comments (`//` and `/* */`) are supported.
 
-Task descriptors are case-insensitive.
+Task descriptors are case-insensitive and can be abbreviated by substituting `...` (configurable) for any part of a descriptor.
 
 Here's a sample timesheet with output:
 
@@ -47,13 +47,12 @@ Here's a sample timesheet with output:
     		10.25	break	Coffee time // This task will be ignored because it is blacklisted
     		10:41	Issue #1422	restarting server
     10:44	10:56	issue #1372	reviewing
-    		11:53	Issue #1372	Merging code
+    		11:53	...1372	Merging code
     		12:47	lunch // blacklisted
-    		1:00 pm	Issue #1372	Merging code
+    		1:00 pm	...1372	Merg...
     		16:03	meeting	code review
-    		16:21	Issue #1372	Merging code
-    		16:40	issue #1372
-
+    		16:21	...1372	M...
+    		16:40	...1372
     // ...
 
 Yields

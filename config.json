@@ -11,7 +11,8 @@
 			"lunch",
 			"errand",
 			"ignore"
-		]
+		],
+		"abbreviation_indicator": "..."
 	},
 	"formatter": {
 		"indention": "    ",

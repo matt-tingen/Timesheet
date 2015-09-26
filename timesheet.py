@@ -3,6 +3,7 @@ import re
 import json
 import datetime
 
+
 class TaskFormatter:
     def __init__(self, indention='\t', time_format='{hours}:{minutes:02}'):
         self.indention = indention
@@ -44,17 +45,21 @@ class Task:
     def total_duration(self):
         return self.duration + sum((t.total_duration() for t in self.sub_tasks), datetime.timedelta(0))
 
-    # task_name is case insensitive
-    def get_sub_task(self, task_name):
-        task_name = task_name.lower()
+    # task_name is case insensitive, abbreviation_indicator is not
+    def get_sub_task(self, task_name, abbreviation_indicator=None):
+        if abbreviation_indicator and abbreviation_indicator in task_name:
+            abbrev_regex = re.escape(task_name).replace(re.escape(abbreviation_indicator), r'.+')
+            match = lambda t:re.match(abbrev_regex + '$', t, re.I)
+        else:
+            match = task_name.lower().__eq__
 
         try:
-            return next(t for t in self.sub_tasks if t.name.lower() == task_name)
+            return next(t for t in self.sub_tasks if match(t.name.lower()))
         except StopIteration:
             return None
 
-    def add_sub_task(self, sub_task):
-        existing_task = self.get_sub_task(sub_task.name)
+    def add_sub_task(self, sub_task, abbreviation_indicator=None):
+        existing_task = self.get_sub_task(sub_task.name, abbreviation_indicator)
 
         if existing_task is None:
             self.sub_tasks.append(sub_task)
@@ -62,7 +67,7 @@ class Task:
             existing_task.duration += sub_task.duration
 
             for grandchild_task in sub_task.sub_tasks:
-                existing_task.add_sub_task(grandchild_task)
+                existing_task.add_sub_task(grandchild_task, abbreviation_indicator)
 
     def __repr__(self):
         return '<Task({}, {}) with {} sub-tasks>'.format(self.name, self.duration, len(self.sub_tasks))
@@ -74,10 +79,11 @@ class TaskParseError(ValueError):
 
 class TaskParser:
     # blacklisted_task_names is case insensitive
-    def __init__(self, delimiter, time_formats, blacklisted_task_names=()):
+    def __init__(self, delimiter, time_formats, blacklisted_task_names=(), abbreviation_indicator=None):
         self.delimiter = delimiter
         self.time_formats = time_formats
         self.blacklist = {n.lower() for n in blacklisted_task_names}
+        self.abbreviation_indicator = abbreviation_indicator
 
     def parse(self, input_text):
         input_text = self.remove_block_comments(input_text)
@@ -93,7 +99,7 @@ class TaskParser:
                 task, previous_end_time = self.parse_task(line, previous_end_time)
 
                 if task.name.lower() not in self.blacklist:
-                    root_task.add_sub_task(task)
+                    root_task.add_sub_task(task, self.abbreviation_indicator)
 
         return root_task
 
@@ -129,7 +135,7 @@ class TaskParser:
 
         for i, task_name in enumerate(parts[first_task_index + 1:], first_task_index + 1):
             task = Task(task_name, get_duration(i))
-            final_task.add_sub_task(task)
+            final_task.add_sub_task(task, self.abbreviation_indicator)
             final_task = task
 
         return root_task, end
